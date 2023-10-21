@@ -1,131 +1,204 @@
 #include <glad/glad.h>
-#include "render.hpp"
-#include "shader.hpp"
 #include <GL/gl.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include <iostream>
 #include <cmath>
+#include <forward_list>
 #include <algorithm>
+
+#include "render.hpp"
+#include "shader.hpp"
+#include "Object.hpp"
+#include "Texture.hpp"
+#include "Camera.hpp"
+#include "stb_image.h"
 
 using F21 = float[21];
 
 void clear()
 {
-	glClearColor(0.2, 0.3, 0.3, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT);
+    glClearColor(0.2, 0.3, 0.3, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
-static const GLchar* vertexShaderSource =
-    "#version 330 core\n"
-    "layout (location = 0) in vec3 position;\n"
-    "layout (location = 1) in vec4 color;\n"
-    "out vec4 ourColor;\n"
-    "void main() {\n"
-    "    gl_Position = vec4(position, 1.0f);\n"
-    "    ourColor = color;\n"
-    "}\n";
-static const GLchar* fragmentShaderSource =
-    "#version 330 core\n"
-    "uniform vec4 ourColor;\n"
-    "out vec4 color;\n"
-    "void main() {\n"
-    "    color = ourColor;\n"
-    "}\n";
 
-/*
-unsigned int vertexShader;
-unsigned int fragmentShader;
-unsigned int shaderProgram;
-*/
+Shader shaders[2];
+Camera *camera;
 
-Shader shader;
+unsigned int woodTexture;
+unsigned int faceTexture;
 
-unsigned int vaos[2];
-unsigned int vbos[2];
-unsigned int ebos[2];
+std::forward_list<Texture *> textures;
+std::forward_list<Object *> objects;
 
-float triangle1[21];
-float triangle2[21];
+unsigned int indicesArray[] = {
+    // Top face
+    0, 1, 2,
+    0, 2, 3,
+    // Bottom face
+    4, 5, 6,
+    4, 6, 7,
+    // Left face
+    8, 9, 10,
+    8, 10, 11,
+    // Right face
+    12, 13, 14,
+    12, 14, 15,
+    // Front face
+    16, 17, 18,
+    16, 18, 19,
+    // Back face
+    20, 21, 22,
+    20, 22, 23};
 
-unsigned int indices[6]; //We'll use the same indices for both triangles
-
-void init()
+float verticesArray[] =
 {
-        shader = Shader("./vertexShader.vert", "./fragmentShader.frag");
-        float t1[21] = {
-                -0.5, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
-                -0.25, 0.5, 0.0, 1.0, 0.0, 0.0, 1.0,
-                0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
-        };
-        std::copy_n( 
-        t1,
-        21,
-        triangle1
-        );
-        float t2[21] = {
-                0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
-                0.25, 0.5, 0.0, 0.0, 1.0, 1.0, 1.0,
-                0.5, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0
-        };
+    // Top face
+    //x    y    z      r    g    b   a       u    v      nx   ny   nz
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 1.0, 0.0,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 1.0, 0.0,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 1.0, 0.0,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 1.0, 0.0,
+    // Bottom face 
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0,-1.0, 0.0,
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0,-1.0, 0.0,
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0,-1.0, 0.0,
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0,-1.0, 0.0,
+    // Left face  
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,  -1.0, 0.0, 0.0,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,  -1.0, 0.0, 0.0,
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,  -1.0, 0.0, 0.0,
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,  -1.0, 0.0, 0.0,
+    // Right face   
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   1.0, 0.0, 0.0,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   1.0, 0.0, 0.0,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   1.0, 0.0, 0.0,
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   1.0, 0.0, 0.0,
+    // Front face   
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0, 1.0,
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0, 1.0,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0, 1.0,
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0, 1.0,
+    // Back face   
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0,-1.0,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0,-1.0,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0,-1.0,
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0,-1.0
+};
 
-        unsigned int idx[] = {
-                0, 1, 2
-        };
+float verticesArrayLight[] = {
+    // Top face
+    // x   y    z      r    g    b    a      u    v      nx   ny   nz
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 1.0, 0.0,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 1.0, 0.0,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 1.0, 0.0,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 1.0, 0.0,
+    // Bottom face  
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0,-1.0, 0.0,
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0,-1.0, 0.0,
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0,-1.0, 0.0,
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0,-1.0, 0.0,
+    // Left face  
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,  -1.0, 0.0, 0.0,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,  -1.0, 0.0, 0.0,
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,  -1.0, 0.0, 0.0,
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,  -1.0, 0.0, 0.0,
+    // Right face  
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   1.0, 0.0, 0.0,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   1.0, 0.0, 0.0,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   1.0, 0.0, 0.0,
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   1.0, 0.0, 0.0,
+    // Front face  
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0, 1.0,
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0, 1.0,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0, 1.0,
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0, 1.0,
+    // Back face  
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0,-1.0,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0,-1.0,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0,-1.0,
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0,-1.0
+};
+void camera_handler(GLFWwindow *window)
+{
+    camera->processInput(window);
+}
 
-        std::copy_n(idx, 3, indices);
+void window_handler(int width, int height)
+{
+    std::cout << "Window resized to: " << width << "x" << height << std::endl;
+    camera->setWidth(width);
+    camera->setHeight(height);
+    camera->computeTransformations();
+}
+void init(GLFWwindow *window)
+{
+    Texture::initBlankTexture();
+    Shader shader = Shader("./vertexShader.vert", "./fragmentShader.frag");
+    Shader lightShader = Shader("./lightVertexShader.vert", "./lightFragmentShader.frag");
+    shaders[0] = shader;
+    shaders[1] = lightShader;
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+    camera = new Camera(glm::vec3(0.0f, 0.0f, 0.0f), 90.0f, 0.0, 5.0, width, height, shaders, 2);
+    std::cout << "Created camera" << std::endl;
+    Texture *woodTexture = new Texture("./container.jpg");
+    textures.push_front(woodTexture);
+    // create a verticies array that creates a cube centered in 0.0 with a side length of one
 
-        std::copy_n(
-        t2,
-        21,
-        triangle2);
+    unsigned int verticesSize = sizeof(verticesArray) / sizeof(float);
+    unsigned int indicesSize = sizeof(indicesArray) / sizeof(unsigned int);
 
-        glGenVertexArrays(2, vaos);
-        glGenBuffers(2, vbos);
-        glGenBuffers(2, ebos);
+    // Verifica indicii de la cub si continua
+    // Now create the indices array for all six faces of the cube
 
-        glBindVertexArray(vaos[0]);
-        glBindBuffer(GL_ARRAY_BUFFER, vbos[0]);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 21, triangle1, GL_STATIC_DRAW);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebos[0]);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * 3, indices, GL_STATIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
-        glEnableVertexAttribArray(1);
+    glm::mat4 model = glm::mat4(1.0f);
+    Object *cube = new Object(
+        verticesArray,
+        indicesArray,
+        verticesSize,
+        indicesSize,
+        woodTexture,
+        &shaders[0],
+        model);
+    objects.push_front(cube);
 
-        glBindVertexArray(vaos[1]);
-        glBindBuffer(GL_ARRAY_BUFFER, vbos[1]);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 21, triangle2, GL_STATIC_DRAW);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebos[1]);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * 3, indices, GL_STATIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
-        glEnableVertexAttribArray(1);
+    glm::vec3 lightPos = glm::vec3(1.2f, 1.0f, 2.0f);
+    model = glm::translate(model, lightPos);
+    model = glm::scale(model, glm::vec3(0.2f));
+    
+    Object *light = new Object(
+        verticesArrayLight,
+        indicesArray,
+        verticesSize,
+        indicesSize,
+        woodTexture,
+        &shaders[1],
+        model);
+    objects.push_front(light);
 
-        glBindVertexArray(0);
+    shader.use();
+    glUniform4fv(glGetUniformLocation(shader.ID, "ambient"), 1, glm::value_ptr(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)));
+    glUniform3fv(glGetUniformLocation(shader.ID, "lightPos"), 1, glm::value_ptr(lightPos));
+    // std::cout << "Created cube" << std::endl;
+
+    // shader->use();
+    //  unsigned int transformLoc = glGetUniformLocation(shader->ID, "model");
+    //  unsigned int projectionLoc = glGetUniformLocation(shader->ID, "projection");
+    //  std::cout << "Transform location: " << transformLoc << std::endl;
+    //   Set the transformation matrices transform, view and projection to their corresponding uniform locations in the shader
+    //  glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
+    //  projection = glm::perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
+    //  glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 }
 void render(GLFWwindow *window)
 {
-		clear();
-/* Build and compile shader program. */
-        /* Vertex shader */
-        float timeValue = glfwGetTime() / 2;
-        std::cout << timeValue << std::endl;
-        float greenValue = (std::sin(timeValue) / 2.0f) + 0.5f;
-        float redValue = (std::sin(timeValue - M_PI / 2) / 2.0f) + 0.5f;
-        float blueValue = (std::sin(timeValue - M_PI / 2) / 2.0f) + 0.5f;
-        int vertexColorLocation = glGetUniformLocation(shader.ID, "ourColor");
-
-        shader.use();
-        glUniform4f(vertexColorLocation, redValue, greenValue, blueValue, 1.0f);
-
-        shader.use();
-        glBindVertexArray(vaos[0]);
-        //glDrawArrays(GL_LINE_LOOP, 0, 3);
-        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
-
-        shader.use();
-        glBindVertexArray(vaos[1]);
-        //glDrawArrays(GL_LINE_LOOP, 0, 3);
-        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
-	
+    clear();
+    for (auto object : objects)
+    {
+        object->render();
+    }
 }
