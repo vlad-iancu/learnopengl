@@ -3,7 +3,7 @@
 #define TEXTURE_HPP
 //Include dependencies
 #include <string>
-#include <glad/glad.h>
+#include "include/glad/glad.h"
 #include <GL/gl.h>
 
 //Create a class for the texture

@@ -2,7 +2,7 @@
 #ifndef OBJECT_HPP
 #define OBJECT_HPP
 
-#include <glad/glad.h>
+#include "include/glad/glad.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
@@ -15,6 +15,7 @@
  an Element Buffer Object (EBO), a Shader Program (SP) and a render function */
 
 // The vertices object should be a struct that contains the 3D coordinates of the vertex, the color of the vertex in RGBA format and the texture coordinates of the vertex
+#pragma pack(1)
 struct vertex
 {
     // The x coordinate of the vertex
@@ -40,6 +41,9 @@ struct vertex
     // The y component of the normal vector of the vertex
     float ny;
     // The z component of the normal vector of the vertex
+    float nz;
+    // The albedo of the vertex
+    float albedo;
 };
 
 class Object

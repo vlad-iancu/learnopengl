@@ -1,4 +1,4 @@
-#include <glad/glad.h>
+#include "./include/glad/glad.h"
 #include <GL/gl.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -9,8 +9,10 @@
 #include <cmath>
 #include <forward_list>
 #include <algorithm>
+#include <thread>
+#include <chrono>
 
-#include "render.hpp"
+//#include "render.hpp"
 #include "shader.hpp"
 #include "Object.hpp"
 #include "Texture.hpp"
@@ -31,8 +33,8 @@ Camera *camera;
 unsigned int woodTexture;
 unsigned int faceTexture;
 
-std::forward_list<Texture *> textures;
-std::forward_list<Object *> objects;
+std::vector<Texture *> textures;
+std::vector<Object *> objects;
 
 unsigned int indicesArray[] = {
     // Top face
@@ -54,73 +56,75 @@ unsigned int indicesArray[] = {
     20, 21, 22,
     20, 22, 23};
 
+float topAlbedo = 0.5;
+float bottomAlbedo = 0.5;
 float verticesArray[] =
 {
     // Top face
-    //x    y    z      r    g    b   a       u    v      nx   ny   nz
-    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 1.0, 0.0,
-    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 1.0, 0.0,
-     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 1.0, 0.0,
-     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 1.0, 0.0,
-    // Bottom face 
-    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0,-1.0, 0.0,
-    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0,-1.0, 0.0,
-     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0,-1.0, 0.0,
-     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0,-1.0, 0.0,
-    // Left face  
-    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,  -1.0, 0.0, 0.0,
-    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,  -1.0, 0.0, 0.0,
-    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,  -1.0, 0.0, 0.0,
-    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,  -1.0, 0.0, 0.0,
-    // Right face   
-     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   1.0, 0.0, 0.0,
-     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   1.0, 0.0, 0.0,
-     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   1.0, 0.0, 0.0,
-     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   1.0, 0.0, 0.0,
-    // Front face   
-    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0, 1.0,
-    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0, 1.0,
-     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0, 1.0,
-     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0, 1.0,
-    // Back face   
-     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0,-1.0,
-     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0,-1.0,
-    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0,-1.0,
-    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0,-1.0
-};
+    //x    y    z      r    g    b   a       u    v      nx   ny   nz   albedo
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 1.0, 0.0,  bottomAlbedo,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 1.0, 0.0,  topAlbedo,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 1.0, 0.0,  topAlbedo,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 1.0, 0.0,  bottomAlbedo,
+    // Bottom face  Albedo
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0,-1.0, 0.0,  bottomAlbedo,
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0,-1.0, 0.0,  topAlbedo,
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0,-1.0, 0.0,  topAlbedo,
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0,-1.0, 0.0,  bottomAlbedo,
+    // Left face   Albedo
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,  -1.0, 0.0, 0.0,  bottomAlbedo,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,  -1.0, 0.0, 0.0,  topAlbedo,
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,  -1.0, 0.0, 0.0,  topAlbedo,
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,  -1.0, 0.0, 0.0,  bottomAlbedo,
+    // Right face    Albedo
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   1.0, 0.0, 0.0,  bottomAlbedo,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   1.0, 0.0, 0.0,  topAlbedo,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   1.0, 0.0, 0.0,  topAlbedo,
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   1.0, 0.0, 0.0,  bottomAlbedo,
+    // Front face    Albedo
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0, 1.0,  bottomAlbedo,
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0, 1.0,  topAlbedo,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0, 1.0,  topAlbedo,
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0, 1.0,  bottomAlbedo,
+    // Back face     Albedo
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0,-1.0,  bottomAlbedo,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0,-1.0,  topAlbedo,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0,-1.0,  topAlbedo,
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0,-1.0,  bottomAlbedo,
+    };
 
 float verticesArrayLight[] = {
     // Top face
-    // x   y    z      r    g    b    a      u    v      nx   ny   nz
-    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 1.0, 0.0,
-    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 1.0, 0.0,
-     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 1.0, 0.0,
-     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 1.0, 0.0,
-    // Bottom face  
-    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0,-1.0, 0.0,
-    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0,-1.0, 0.0,
-     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0,-1.0, 0.0,
-     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0,-1.0, 0.0,
-    // Left face  
-    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,  -1.0, 0.0, 0.0,
-    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,  -1.0, 0.0, 0.0,
-    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,  -1.0, 0.0, 0.0,
-    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,  -1.0, 0.0, 0.0,
-    // Right face  
-     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   1.0, 0.0, 0.0,
-     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   1.0, 0.0, 0.0,
-     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   1.0, 0.0, 0.0,
-     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   1.0, 0.0, 0.0,
-    // Front face  
-    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0, 1.0,
-    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0, 1.0,
-     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0, 1.0,
-     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0, 1.0,
-    // Back face  
-     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0,-1.0,
-     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0,-1.0,
-    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0,-1.0,
-    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0,-1.0
+    //x    y    z      r    g    b   a       u    v      nx   ny   nz   albedo
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 1.0, 0.0,   0.5,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 1.0, 0.0,   0.5,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 1.0, 0.0,   0.5,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 1.0, 0.0,   0.5,
+    // Bottom face   
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0,-1.0, 0.0,   0.5,
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0,-1.0, 0.0,   0.5,
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0,-1.0, 0.0,   0.5,
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0,-1.0, 0.0,   0.5,
+    // Left face    
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,  -1.0, 0.0, 0.0,   0.5,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,  -1.0, 0.0, 0.0,   0.5,
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,  -1.0, 0.0, 0.0,   0.5,
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,  -1.0, 0.0, 0.0,   0.5,
+    // Right face     
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   1.0, 0.0, 0.0,   0.5,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   1.0, 0.0, 0.0,   0.5,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   1.0, 0.0, 0.0,   0.5,
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   1.0, 0.0, 0.0,   0.5,
+    // Front face     
+    -0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0, 1.0,   0.5,
+    -0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0, 1.0,   0.5,
+     0.5, 0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0, 1.0,   0.5,
+     0.5,-0.5, 0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0, 1.0,   0.5,
+    // Back face     
+     0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 0.0,   0.0, 0.0,-1.0,   0.5,
+     0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   0.0, 1.0,   0.0, 0.0,-1.0,   0.5,
+    -0.5, 0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 1.0,   0.0, 0.0,-1.0,   0.5,
+    -0.5,-0.5,-0.5,   1.0, 1.0, 1.0, 1.0,   1.0, 0.0,   0.0, 0.0,-1.0,   0.5  
 };
 void camera_handler(GLFWwindow *window)
 {
@@ -134,6 +138,40 @@ void window_handler(int width, int height)
     camera->setHeight(height);
     camera->computeTransformations();
 }
+
+//std::thread moveLightThread;
+glm::vec3 lightPos;
+void updateLight()
+{
+    // 10 ... 5000
+    // x .... 360
+    // x = 360 * 10 / 5000
+    // x = 0.72
+    while (true)
+    {
+        glm::mat4 model = glm::mat4(1.0f);
+        float angle = 0.72f;
+        //lightPos = glm::vec3(1.2f, 1.0f, 2.0f);
+        //model = glm::translate(model, lightPos);
+        model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+        
+        //exit(0);
+        //model = glm::translate(model, -lightPos);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        objects[1]->transform = model * objects[1]->transform;
+        lightPos = objects[1]->transform * glm::vec4(lightPos, 1.0f);
+        std::cout << lightPos.x << " " << lightPos.y << " " << lightPos.z << std::endl;
+        shaders[0].use();
+        glUniform3fv(glGetUniformLocation(shaders[0].ID, "lightPos"), 1, glm::value_ptr(lightPos));
+        shaders[1].use();
+        glUniform3fv(glGetUniformLocation(shaders[1].ID, "lightPos"), 1, glm::value_ptr(lightPos));
+        std::cout << "Error: " << glGetError() << std::endl;
+        std::cout << "Error: " << glGetError() << std::endl;
+        std::cout << "Shader1 ID: " << shaders[0].ID << std::endl;
+        std::cout << "Shader2 ID: " << shaders[1].ID << std::endl;
+    }
+}
+
 void init(GLFWwindow *window)
 {
     Texture::initBlankTexture();
@@ -141,12 +179,13 @@ void init(GLFWwindow *window)
     Shader lightShader = Shader("./lightVertexShader.vert", "./lightFragmentShader.frag");
     shaders[0] = shader;
     shaders[1] = lightShader;
+    std::cout << "Shader1 ID: " << shaders[0].ID << std::endl;
+    std::cout << "Shader2 ID: " << shaders[1].ID << std::endl;
     int width, height;
     glfwGetWindowSize(window, &width, &height);
     camera = new Camera(glm::vec3(0.0f, 0.0f, 0.0f), 90.0f, 0.0, 5.0, width, height, shaders, 2);
-    std::cout << "Created camera" << std::endl;
     Texture *woodTexture = new Texture("./container.jpg");
-    textures.push_front(woodTexture);
+    textures.push_back(woodTexture);
     // create a verticies array that creates a cube centered in 0.0 with a side length of one
 
     unsigned int verticesSize = sizeof(verticesArray) / sizeof(float);
@@ -164,9 +203,9 @@ void init(GLFWwindow *window)
         woodTexture,
         &shaders[0],
         model);
-    objects.push_front(cube);
+    objects.push_back(cube);
 
-    glm::vec3 lightPos = glm::vec3(1.2f, 1.0f, 2.0f);
+    lightPos = glm::vec3(0.6f, 0.5f, 1.0f);
     model = glm::translate(model, lightPos);
     model = glm::scale(model, glm::vec3(0.2f));
     
@@ -178,13 +217,16 @@ void init(GLFWwindow *window)
         woodTexture,
         &shaders[1],
         model);
-    objects.push_front(light);
+    objects.push_back(light);
 
+    glm::vec4 lightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
     shader.use();
-    glUniform4fv(glGetUniformLocation(shader.ID, "ambient"), 1, glm::value_ptr(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)));
     glUniform3fv(glGetUniformLocation(shader.ID, "lightPos"), 1, glm::value_ptr(lightPos));
+    glUniform4fv(glGetUniformLocation(shader.ID, "lightColor"), 1, glm::value_ptr(lightColor));
     // std::cout << "Created cube" << std::endl;
 
+    //moveLightThread = std::thread(updateLight);
+    //  std::cout << "Created light" << std::endl;
     // shader->use();
     //  unsigned int transformLoc = glGetUniformLocation(shader->ID, "model");
     //  unsigned int projectionLoc = glGetUniformLocation(shader->ID, "projection");
@@ -197,6 +239,23 @@ void init(GLFWwindow *window)
 void render(GLFWwindow *window)
 {
     clear();
+    glm::mat4 model = glm::mat4(1.0f);
+
+    float angle = 0.18f;
+    //lightPos = glm::vec3(1.2f, 1.0f, 2.0f);
+    //model = glm::translate(model, lightPos);
+    model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+    //model = glm::rotate(model, glm::radians(angle / 2), glm::vec3(1.0f, 1.0f, 0.0f));
+
+    //exit(0);
+    //model = glm::translate(model, -lightPos);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    objects[1]->transform = model * objects[1]->transform;
+    lightPos = objects[1]->transform * glm::vec4(lightPos, 1.0f);
+    //std::cout << lightPos.x << " " << lightPos.y << " " << lightPos.z << std::endl;
+    shaders[0].use();
+    glUniform3fv(glGetUniformLocation(shaders[0].ID, "lightPos"), 1, glm::value_ptr(lightPos));
+    //std::cout << "Error: " << glGetError() << std::endl;
     for (auto object : objects)
     {
         object->render();
