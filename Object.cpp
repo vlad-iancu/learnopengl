@@ -18,7 +18,6 @@ void Object::render()
     }
     // std::cout << "Bound texture" << std::endl;
     // Use the shader program
-    shader->use();
     // std::cout << "Used shader program" << std::endl;
     // Set the transform matrix
     shader->use();
@@ -50,6 +49,7 @@ Object::Object(
     Shader *shader,
     glm::mat4 transform)
 {
+    
     this->transform = transform;
     // Set the vertices array
     this->verticesArray = verticesArray;
@@ -63,8 +63,9 @@ Object::Object(
     verticesSizeBytes = verticesSize * sizeof(float);
     // Set the indices size in bytes
     indicesSizeBytes = indicesSize * sizeof(unsigned int);
-    unsigned int stride = 12 * sizeof(float);
-
+    unsigned int stride = sizeof(vertex);
+    std::cout << "Stride: " << stride << std::endl;
+    std::cout << "Stride: " << 13 * sizeof(float) << std::endl;
     // Generate the VAO
     glGenVertexArrays(1, &VAO);
     // Generate the VBO
@@ -79,7 +80,6 @@ Object::Object(
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesSizeBytes, indicesArray, GL_STATIC_DRAW);
     // Set the vertex attribute pointer for the vertex coordinates
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void *)0);
-
     // Enable the vertex attribute pointer for the vertex coordinates
     glEnableVertexAttribArray(0);
     // Set the vertex attribute pointer for the vertex color
@@ -94,6 +94,10 @@ Object::Object(
     glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride, (void *)(9 * sizeof(float)));
     // Enable the vertex attribute pointer for the vertex normal vector
     glEnableVertexAttribArray(3);
+    // Set the vertex attribute pointer for the vertex albedo
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, stride, (void *)(12 * sizeof(float)));
+    // Enable the vertex attribute pointer for the vertex albedo
+    glEnableVertexAttribArray(4);
     // Unbind the VAO
     glBindVertexArray(0);
     // Unbind the VBO

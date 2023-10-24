@@ -29,3 +29,25 @@ Texture.o: Texture.cpp
 
 Camera.o: Camera.cpp
 	g++ -c Camera.cpp
+
+clean:
+	rm -f *.o *.a main
+
+web: main.cpp
+	emcc main.cpp \
+		render.cpp \
+		src/glad.c \
+		shader.cpp\
+		Object.cpp \
+		Texture.cpp \
+		Camera.cpp \
+                -I/usr/include \
+                -I/usr/local/include \
+		-lglfw \
+		-lGL \
+		-lX11 \
+		-lpthread \
+		-lXrandr \
+		-lXi \
+		-ldl \
+		

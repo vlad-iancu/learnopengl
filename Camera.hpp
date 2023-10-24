@@ -1,7 +1,7 @@
 #ifndef CAMERA_HPP
 #define CAMERA_HPP
 
-#include <glad/glad.h>
+#include "include/glad/glad.h"
 #include <GL/gl.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -25,6 +25,7 @@ class Camera
     glm::vec3 cameraTarget;
     glm::mat4 view;
     glm::mat4 projection;
+    glm::vec3 cameraPosition;
     int width = 800;
     int height = 600;
 

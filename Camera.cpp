@@ -18,13 +18,21 @@ void Camera::processInput(GLFWwindow *window)
     {
         rotateHorizontally(-2.0);
     }
-    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
     {
-        rotateVertically(2.0f);
+        rotateHorizontally(2.0f);
     }
-    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+    {
+        rotateHorizontally(-2.0);
+    }
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
     {
         rotateVertically(-2.0f);
+    }
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+    {
+        rotateVertically(2.0f);
     }
 }
 void Camera::zoomOut(float distance)
@@ -88,7 +96,6 @@ void Camera::computeTransformations()
     glm::vec3 up = glm::vec3(0.0, 1.0, 0.0);
     glm::vec3 cameraRight = glm::normalize(glm::cross(up, direction));
     glm::vec3 cameraUp = glm::cross(direction, cameraRight);
-    std::cout << yawAngle << " " << pitchAngle << std::endl;
     view = glm::lookAt(cameraTarget + direction, cameraTarget, cameraUp);
     if (width == 0 || height == 0)
     {
@@ -100,9 +107,10 @@ void Camera::computeTransformations()
     for (int i = 0; i < numShaders; i++)
     {
         shaders[i].use();
+        cameraPosition = cameraTarget + direction;
         glUniformMatrix4fv(glGetUniformLocation(shaders[i].ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         glUniformMatrix4fv(glGetUniformLocation(shaders[i].ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    
+        glUniform3fv(glGetUniformLocation(shaders[i].ID, "viewPos"), 1, glm::value_ptr(cameraPosition));
     }
 }
 
